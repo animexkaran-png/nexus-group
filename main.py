@@ -1,3 +1,5 @@
+import telegram
+print("TELEGRAM VERSION:", telegram.__version__)
 import os
 import logging
 from pymongo import MongoClient
