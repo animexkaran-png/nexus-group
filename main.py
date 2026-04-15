@@ -1,5 +1,3 @@
-import telegram
-print("TELEGRAM VERSION:", telegram.__version__)
 import os
 import logging
 from pymongo import MongoClient
@@ -17,6 +15,8 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing")
 if not MONGO_URI:
     raise ValueError("MONGO_URI missing")
+
+print("🔥 Starting Bot...")
 
 # ---------------- DB ----------------
 client = MongoClient(MONGO_URI)
@@ -48,8 +48,8 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         groups = list(groups_col.find({}, {"_id": 0}))
 
         if not groups:
-            await query.message.edit_text("No groups connected.\nSend @username or ID")
             context.user_data["mode"] = "add_group"
+            await query.message.edit_text("No groups connected.\nSend @username or ID")
             return
 
         keyboard = []
@@ -65,8 +65,8 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         channels = list(channels_col.find({}, {"_id": 0}))
 
         if not channels:
-            await query.message.edit_text("No channels connected.\nSend @username or ID")
             context.user_data["mode"] = "add_channel"
+            await query.message.edit_text("No channels connected.\nSend @username or ID")
             return
 
         keyboard = []
@@ -114,23 +114,23 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if bot_member.status not in ["administrator"]:
-            await update.message.reply_text("Bot must be admin")
+            await update.message.reply_text("Bot must be admin in that chat")
             return
 
         if mode == "add_group":
             groups_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
-            await update.message.reply_text("Group connected")
+            await update.message.reply_text("Group connected ✅")
 
         elif mode == "add_channel":
             channels_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
-            await update.message.reply_text("Channel connected")
+            await update.message.reply_text("Channel connected ✅")
 
         context.user_data["mode"] = None
 
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
 
-# ---------------- GET ----------------
+# ---------------- GET ALL ----------------
 def get_all():
     groups = [g["chat_id"] for g in groups_col.find()]
     channels = [c["chat_id"] for c in channels_col.find()]
@@ -138,6 +138,9 @@ def get_all():
 
 # ---------------- BAN ----------------
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /ban user_id")
+
     target = int(context.args[0])
     groups, channels = get_all()
 
@@ -147,7 +150,7 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-    await update.message.reply_text("Banned everywhere")
+    await update.message.reply_text("Banned everywhere 🔥")
 
 # ---------------- MAIN ----------------
 def main():
@@ -160,7 +163,8 @@ def main():
     app.add_handler(CommandHandler("ban", ban))
 
     print("🔥 Bot Running...")
-    app.run_polling()
+
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
