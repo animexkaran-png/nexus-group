@@ -1,7 +1,7 @@
 import os
+import json
 import logging
-from pymongo import MongoClient
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     ContextTypes, MessageHandler, filters
@@ -9,24 +9,26 @@ from telegram.ext import (
 
 # ---------------- CONFIG ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI")
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing")
-if not MONGO_URI:
-    raise ValueError("MONGO_URI missing")
+
+DATA_FILE = "data.json"
 
 print("🔥 Starting Bot...")
 
-# ---------------- DB ----------------
-client = MongoClient(MONGO_URI)
-db = client["network_bot"]
-
-groups_col = db["groups"]
-channels_col = db["channels"]
-warns_col = db["warns"]
-
 logging.basicConfig(level=logging.INFO)
+
+# ---------------- FILE DB ----------------
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {"groups": [], "channels": []}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 # ---------------- START ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,8 +46,10 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    data = load_data()
+
     if query.data == "groups":
-        groups = list(groups_col.find({}, {"_id": 0}))
+        groups = data["groups"]
 
         if not groups:
             context.user_data["mode"] = "add_group"
@@ -55,14 +59,14 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = []
         for g in groups:
             keyboard.append([
-                InlineKeyboardButton(str(g["chat_id"]), callback_data="noop"),
-                InlineKeyboardButton("❌", callback_data=f"remove_group_{g['chat_id']}")
+                InlineKeyboardButton(str(g), callback_data="noop"),
+                InlineKeyboardButton("❌", callback_data=f"remove_group_{g}")
             ])
 
         await query.message.edit_text("Connected Groups:", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif query.data == "channels":
-        channels = list(channels_col.find({}, {"_id": 0}))
+        channels = data["channels"]
 
         if not channels:
             context.user_data["mode"] = "add_channel"
@@ -72,8 +76,8 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = []
         for c in channels:
             keyboard.append([
-                InlineKeyboardButton(str(c["chat_id"]), callback_data="noop"),
-                InlineKeyboardButton("❌", callback_data=f"remove_channel_{c['chat_id']}")
+                InlineKeyboardButton(str(c), callback_data="noop"),
+                InlineKeyboardButton("❌", callback_data=f"remove_channel_{c}")
             ])
 
         await query.message.edit_text("Connected Channels:", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -83,16 +87,18 @@ async def remove_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    data = query.data
+    data = load_data()
 
-    if data.startswith("remove_group_"):
-        chat_id = int(data.split("_")[-1])
-        groups_col.delete_one({"chat_id": chat_id})
+    if query.data.startswith("remove_group_"):
+        chat_id = int(query.data.split("_")[-1])
+        data["groups"] = [g for g in data["groups"] if g != chat_id]
+        save_data(data)
         await query.message.edit_text("Group removed")
 
-    elif data.startswith("remove_channel_"):
-        chat_id = int(data.split("_")[-1])
-        channels_col.delete_one({"chat_id": chat_id})
+    elif query.data.startswith("remove_channel_"):
+        chat_id = int(query.data.split("_")[-1])
+        data["channels"] = [c for c in data["channels"] if c != chat_id]
+        save_data(data)
         await query.message.edit_text("Channel removed")
 
 # ---------------- ADD ----------------
@@ -102,6 +108,7 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_input = update.message.text
+    data = load_data()
 
     try:
         chat = await context.bot.get_chat(chat_input)
@@ -118,13 +125,16 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if mode == "add_group":
-            groups_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
+            if chat.id not in data["groups"]:
+                data["groups"].append(chat.id)
             await update.message.reply_text("Group connected ✅")
 
         elif mode == "add_channel":
-            channels_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
+            if chat.id not in data["channels"]:
+                data["channels"].append(chat.id)
             await update.message.reply_text("Channel connected ✅")
 
+        save_data(data)
         context.user_data["mode"] = None
 
     except Exception as e:
@@ -132,9 +142,8 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- GET ALL ----------------
 def get_all():
-    groups = [g["chat_id"] for g in groups_col.find()]
-    channels = [c["chat_id"] for c in channels_col.find()]
-    return groups, channels
+    data = load_data()
+    return data["groups"], data["channels"]
 
 # ---------------- BAN ----------------
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,7 +172,6 @@ def main():
     app.add_handler(CommandHandler("ban", ban))
 
     print("🔥 Bot Running...")
-
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
