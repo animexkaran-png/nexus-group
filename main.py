@@ -2,36 +2,27 @@ import os
 import logging
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    ContextTypes, MessageHandler, filters
+)
 
-# ---------------- DEBUG START ----------------
-print("🚀 Bot starting...")
-
+# ---------------- CONFIG ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
-print("BOT_TOKEN:", BOT_TOKEN)
-print("MONGO_URI:", MONGO_URI)
-
 if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN missing")
+    raise ValueError("BOT_TOKEN missing")
 if not MONGO_URI:
-    raise ValueError("❌ MONGO_URI missing")
+    raise ValueError("MONGO_URI missing")
 
-# ---------------- DB CONNECT ----------------
-try:
-    client = MongoClient(MONGO_URI)
-    db = client["network_bot"]
+# ---------------- DB ----------------
+client = MongoClient(MONGO_URI)
+db = client["network_bot"]
 
-    groups_col = db["groups"]
-    channels_col = db["channels"]
-    warns_col = db["warns"]
-
-    print("✅ MongoDB connected successfully")
-
-except Exception as e:
-    print("❌ MongoDB Error:", e)
-    raise e
+groups_col = db["groups"]
+channels_col = db["channels"]
+warns_col = db["warns"]
 
 logging.basicConfig(level=logging.INFO)
 
@@ -42,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Connected Channels", callback_data="channels")]
     ]
     await update.message.reply_text(
-        "Network Control Panel Active",
+        "Network Control Panel Active 🚀",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -158,8 +149,6 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- MAIN ----------------
 def main():
-    print("🔥 Starting Telegram bot...")
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -168,7 +157,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, add_chat))
     app.add_handler(CommandHandler("ban", ban))
 
-    print("✅ Bot running...")
+    print("🔥 Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
