@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = "8608297854:AAEPq60c3c9MtuBCCw-Xrz6a-wSQZGqlOOw"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing")
