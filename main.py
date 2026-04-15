@@ -10,8 +10,8 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = "8608297854:AAHAiPhXVSxZJKLQu74zTr-s-s0KODzShOU"
-MONGO_URI = "mongodb+srv://animexkaran_db_user:aayush04016@cluster0.01am22w.mongodb.net/?appName=Cluster0"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+MONGO_URI = "YOUR_MONGO_URI"
 
 # ---------------- DB ----------------
 client = MongoClient(MONGO_URI)
