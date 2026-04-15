@@ -1,3 +1,4 @@
+import os
 import logging
 from pymongo import MongoClient
 from telegram import (
@@ -10,8 +11,14 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-MONGO_URI = "YOUR_MONGO_URI"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URI = os.getenv("MONGO_URI")
+
+# ---------------- CHECK ----------------
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN missing")
+if not MONGO_URI:
+    raise ValueError("MONGO_URI missing")
 
 # ---------------- DB ----------------
 client = MongoClient(MONGO_URI)
@@ -50,7 +57,7 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = []
         for g in groups:
             keyboard.append([
-                InlineKeyboardButton(f"{g['chat_id']}", callback_data="noop"),
+                InlineKeyboardButton(str(g["chat_id"]), callback_data="noop"),
                 InlineKeyboardButton("❌", callback_data=f"remove_group_{g['chat_id']}")
             ])
 
@@ -70,7 +77,7 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = []
         for c in channels:
             keyboard.append([
-                InlineKeyboardButton(f"{c['chat_id']}", callback_data="noop"),
+                InlineKeyboardButton(str(c["chat_id"]), callback_data="noop"),
                 InlineKeyboardButton("❌", callback_data=f"remove_channel_{c['chat_id']}")
             ])
 
@@ -89,12 +96,12 @@ async def remove_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("remove_group_"):
         chat_id = int(data.split("_")[-1])
         groups_col.delete_one({"chat_id": chat_id})
-        await query.message.edit_text("Group removed successfully")
+        await query.message.edit_text("Group removed")
 
     elif data.startswith("remove_channel_"):
         chat_id = int(data.split("_")[-1])
         channels_col.delete_one({"chat_id": chat_id})
-        await query.message.edit_text("Channel removed successfully")
+        await query.message.edit_text("Channel removed")
 
 # ---------------- ADD ----------------
 async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,23 +122,15 @@ async def add_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if bot_member.status not in ["administrator"]:
-            await update.message.reply_text("Bot must be admin with full rights")
+            await update.message.reply_text("Bot must be admin")
             return
 
         if mode == "add_group":
-            groups_col.update_one(
-                {"chat_id": chat.id},
-                {"$set": {"chat_id": chat.id}},
-                upsert=True
-            )
+            groups_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
             await update.message.reply_text("Group connected")
 
         elif mode == "add_channel":
-            channels_col.update_one(
-                {"chat_id": chat.id},
-                {"$set": {"chat_id": chat.id}},
-                upsert=True
-            )
+            channels_col.update_one({"chat_id": chat.id}, {"$set": {"chat_id": chat.id}}, upsert=True)
             await update.message.reply_text("Channel connected")
 
         context.user_data["mode"] = None
@@ -145,15 +144,9 @@ def get_all():
     channels = [c["chat_id"] for c in channels_col.find()]
     return groups, channels
 
-# ---------------- USER PARSE ----------------
-def parse_user(arg):
-    if arg.startswith("@"):
-        return arg
-    return int(arg)
-
 # ---------------- BAN ----------------
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    target = parse_user(context.args[0])
+    target = int(context.args[0])
     groups, channels = get_all()
 
     for chat in groups + channels:
@@ -166,7 +159,7 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- UNBAN ----------------
 async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    target = parse_user(context.args[0])
+    target = int(context.args[0])
     groups, channels = get_all()
 
     for chat in groups + channels:
@@ -211,12 +204,7 @@ async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = int(context.args[0])
 
-    warns_col.update_one(
-        {"user_id": user},
-        {"$inc": {"count": 1}},
-        upsert=True
-    )
-
+    warns_col.update_one({"user_id": user}, {"$inc": {"count": 1}}, upsert=True)
     data = warns_col.find_one({"user_id": user})
     count = data["count"]
 
@@ -262,7 +250,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-    await update.message.reply_text("Broadcast sent everywhere")
+    await update.message.reply_text("Broadcast sent")
 
 # ---------------- MAIN ----------------
 def main():
